@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Tareas</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1, h2 {
+            color: #333;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        #taskForm, #tareasPendientes, #tareasCompletadas {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            width: 80%;
+            max-width: 600px;
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        input[type="text"], textarea, input[type="date"] {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #tareasPendientes div, #tareasCompletadas div {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+
+        strong {
+            color: #333;
+        }
+
+        .status-label {
+            font-weight: bold;
+            font-size: 0.9em;
+            color: #888;
+        }
+    </style>
+
+<script>
+    const token = localStorage.getItem('token'); // AsegUra que el token esté almacenado
+
+    //Obtener las tareas
+    async function obtenerTareas() {
+    const response = await fetch('/tareas', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (response.ok) {
+        const tareas = await response.json();
+        console.log(tareas); // Verifica las tareas obtenidas
+        mostrarTareasPendientes(tareas);
+    } else {
+        console.error('Error al obtener las tareas', response.status);
+    }
+}
+
+    //Obtener tareas completadas
+    async function obtenerTareasCompletadas() {
+        const response = await fetch('/tareas/completadas', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const completadas = await response.json();
+            mostrarTareasCompletadas(completadas);
+        } else {
+            console.error('Error al obtener las tareas completadas');
+        }
+    }
+
+    // Mostrar tareas pendientes
+    function mostrarTareasPendientes(tareas) {
+        const tareasPendientesDiv = document.getElementById('tareasPendientes');
+        tareasPendientesDiv.innerHTML = ''; // Limpiar tareas existentes
+
+        tareas.forEach(tarea => {
+            const tareaDiv = document.createElement('div');
+            tareaDiv.innerHTML = `
+                <strong>Titulo: ${tarea.titulo}</strong>
+                <p>Descripcion: ${tarea.descripcion}</p>
+                <p>Fecha: ${new Date(tarea.fecha).toLocaleDateString()}</p>
+                <p>Estado: ${tarea.estado}</p>
+                <button onclick="completarTarea(${tarea.id})">Completar</button>
+                <button onclick="cargarTarea(${tarea.id}, '${tarea.titulo}', '${tarea.descripcion}', '${tarea.fecha}', '${tarea.estado}')">Actualizar</button>
+                <button onclick="eliminarTarea(${tarea.id})">Eliminar</button>
+                <hr>
+            `;
+            tareasPendientesDiv.appendChild(tareaDiv);
+        });
+    }
+
+    // Mostrar tareas completadas en el formulario
+    function mostrarTareasCompletadas(tareas) {
+        const tareasCompletadasDiv = document.getElementById('tareasCompletadas');
+        tareasCompletadasDiv.innerHTML = ''; // Limpiar tareas existentes
+
+        if (tareas.length === 0) {
+            tareasCompletadasDiv.innerHTML = '<p>No hay tareas completadas.</p>';
+        }
+
+        tareas.forEach(tarea => {
+            const tareaDiv = document.createElement('div');
+            tareaDiv.innerHTML = `
+                <strong>${tarea.titulo}</strong>
+                <p>${tarea.descripcion}</p>
+                <p>Fecha: ${new Date(tarea.fecha).toLocaleDateString()}</p>
+                <p>Estado: Completada</p>
+                <button onclick="eliminarTareaCompletada(${tarea.id})">Eliminar</button>
+                <hr>
+            `;
+            tareasCompletadasDiv.appendChild(tareaDiv);
+        });
+    }
+
+    //Agregar nueva tarea
+    async function agregarTarea() {
+        const titulo = document.getElementById('titulo').value;
+        const descripcion = document.getElementById('descripcion').value;
+        const fecha = document.getElementById('fecha').value;
+
+        const response = await fetch('/tareas', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ titulo, descripcion, fecha, estado: 'pendiente' })
+        });
+
+        if (response.ok) {
+            obtenerTareas(); // Actualizar la lista de tareas
+            document.getElementById('taskForm').reset(); // Limpiar el formulario
+        } else {
+            console.error('Error al agregar la tarea');
+        }
+    }
+
+    // Editar tarea para actualizar
+    function cargarTarea(id, titulo, descripcion, fecha, estado) {
+        document.getElementById('titulo').value = titulo;
+        document.getElementById('descripcion').value = descripcion;
+        document.getElementById('fecha').value = fecha;
+        document.getElementById('estado').textContent = estado;
+        document.getElementById('tareaId').value = id; // Guardar el ID de la tarea en un campo oculto
+    }
+
+    //Actualizar tarea
+    async function actualizarTarea() {
+        const id = document.getElementById('tareaId').value;
+        const titulo = document.getElementById('titulo').value;
+        const descripcion = document.getElementById('descripcion').value;
+        const fecha = document.getElementById('fecha').value;
+
+        const response = await fetch(`/tareas/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ titulo, descripcion, fecha, estado: 'pendiente' })
+        });
+
+        if (response.ok) {
+            obtenerTareas(); // Actualizar la lista de tareas
+            document.getElementById('taskForm').reset(); // Limpiar el formulario
+        } else {
+            console.error('Error al actualizar la tarea');
+        }
+    }
+
+    //Completar tarea
+    async function completarTarea(id) {
+        const response = await fetch(`/tareas/completar/${id}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            }
+        });
+
+        if (response.ok) {
+            obtenerTareas(); // Actualizar la lista de tareas
+        } else {
+            console.error('Error al completar la tarea');
+        }
+    }
+
+    // Eliminar tarea
+    async function eliminarTarea(id) {
+        const response = await fetch(`/tareas/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            }
+        });
+
+        if (response.ok) {
+            obtenerTareas(); 
+        } else {
+            console.error('Error al eliminar la tarea');
+        }
+    }
+
+    //Eliminar tarea completada
+    async function eliminarTareaCompletada(id) {
+        const response = await fetch(`/completadas/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            }
+        });
+
+        if (response.ok) {
+            obtenerTareasCompletadas(); // Actualizar la lista de tareas completadas
+        } else {
+            console.error('Error al eliminar la tarea completada');
+        }
+    }
+
+    function cerrarSesion() {
+        const token = localStorage.getItem('token');
+        if (token) {
+            fetch('/logout', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log("Sesión cerrada exitosamente.");
+                } else {
+                    console.error("Error al cerrar sesión:", response.statusText);
+                }
+                // Redirigir al usuario independientemente del resultado de la solicitud
+                localStorage.removeItem('token'); // Eliminar el token del almacenamiento local
+                window.location.href = '/'; // Redirigir al inicio de sesión
+            })
+            .catch(error => {
+                console.error('Error en la solicitud de cierre de sesión:', error);
+                localStorage.removeItem('token'); // Eliminar el token del almacenamiento local
+                window.location.href = '/'; // Redirigir al inicio de sesión
+            });
+        } else {
+            // Si no hay token, redirige directamente
+            window.location.href = '/';
+        }
+    }
+
+    // Llamar a obtenerTareas y obtenerTareasCompletadas al cargar la página
+    window.onload = () => {
+        obtenerTareas();
+        obtenerTareasCompletadas();
+    };
+</script>
+</head>
+<body>
+
+<button type="button" onclick="cerrarSesion()">Cerrar Sesion</button>
+
+<h1>AGENDA DE TAREAS</h1>
+
+<h2>Agregar Nueva Tarea</h2>
+
+<form  id="taskForm" onsubmit="event.preventDefault(); agregarTarea();">
+    <input type="hidden" id="tareaId"> <!-- Campo oculto para el ID de la tarea -->
+   
+    <label for="titulo">Título:</label>
+    <input type="text" id="titulo" n22ame="titulo" required>
+    <br><br>
+
+    <label for="descripcion">Descripción:</label>
+    <br>
+    <textarea id="descripcion" name="descripcion" required cols="80" rows="5"></textarea>
+    <br><br>
+
+    <label for="fecha">Fecha de Creación:</label>
+    <input type="date" id="fecha" name="fecha" required>
+    <br><br>
+
+    <label>Estado:</label>
+    <span id="estado">Pendiente</span>
+    <br><br>
+
+    <button type="submit">Agregar Tarea</button>
+    <button type="button" onclick="actualizarTarea()">Actualizar Tarea</button>
+ 
+</form>
+
+<h2>Tareas Pendientes</h2>
+<div id="tareasPendientes"></div>
+
+<h2>Tareas Completadas</h2>
+<div id="tareasCompletadas"></div>
+</body>
+</html>
